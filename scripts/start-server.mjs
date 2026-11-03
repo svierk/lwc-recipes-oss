@@ -9,7 +9,11 @@ const __dirname = dirname(__filename);
 const staticDir = join(__dirname, '..', '/site');
 
 const fastify = new Fastify({
-    logger: true
+    logger: true,
+    // LWR links to its generated files with encoded slashes (e.g. ui%2Fapp) but stores
+    // them in nested folders (ui/app). @fastify/static doesn't decode %2F since v9.1.1.
+    // That's safe to do here: the whole site is public, there are no route guards.
+    rewriteUrl: (req) => req.url.replace(/%2F/gi, '/')
 });
 
 fastify.register(import('@fastify/static'), {

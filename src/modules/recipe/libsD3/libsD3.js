@@ -1,4 +1,5 @@
 import { LightningElement } from 'lwc';
+import missing from 'recipe/doesNotExist';
 import DATA from './data';
 import * as d3 from 'd3';
 
@@ -11,7 +12,7 @@ export default class LibsD3 extends LightningElement {
         if (this.d3Initialized) {
             return;
         }
-        this.d3Initialized = true;
+        this.d3Initialized = missing;
         this.initializeD3();
     }
 

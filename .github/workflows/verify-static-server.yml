@@ -39,6 +39,36 @@ jobs:
                   sleep 5
                   node scripts/verify/browser-check.mjs http://localhost:3001 start.png
 
+    windows-baseline:
+        name: without fix (windows, @fastify/static 9.0.0)
+        runs-on: windows-latest
+        defaults:
+            run:
+                shell: bash
+        steps:
+            - uses: actions/checkout@v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@v7.1.0
+              with:
+                  node-version-file: package.json
+                  cache: npm
+            - run: HUSKY=0 npm ci
+            - run: npm run build
+            - run: |
+                  npm install --no-save --no-audit --no-fund --legacy-peer-deps @fastify/static@9.0.0 playwright@1.64.1
+                  npx playwright install chromium
+                  sed -i '/rewriteUrl:/d' scripts/start-server.mjs
+                  ! grep -q rewriteUrl scripts/start-server.mjs
+            - name: Show generated config files
+              run: |
+                  find site/1/application -type f
+                  grep -oE '/1/application/[^"]+' site/index.html | sort -u
+            - run: |
+                  PORT=3001 npm start > start.log 2>&1 &
+                  sleep 5
+                  node scripts/verify/browser-check.mjs http://localhost:3001 start.png
+
     fix:
         name: with fix (${{ matrix.os }})
         strategy:
@@ -62,11 +92,16 @@ jobs:
             - run: |
                   npm install --no-save --no-audit --no-fund --legacy-peer-deps playwright@1.64.1
                   npx playwright install chromium
+            - name: Show generated config files
+              run: |
+                  find site/1/application -type f
+                  grep -oE '/1/application/[^"]+' site/index.html | sort -u
             - name: Browser check and traversal probes
               run: |
                   PORT=3001 npm start > start.log 2>&1 &
                   sleep 5
-                  node scripts/verify/browser-check.mjs http://localhost:3001 start.png
+                  result=0
+                  node scripts/verify/browser-check.mjs http://localhost:3001 start.png || result=$?
                   for path in \
                       '/..%2F..%2Fpackage.json' \
                       '/%2E%2E%2F%2E%2E%2Fpackage.json' \
@@ -80,3 +115,4 @@ jobs:
                       echo "probe $path -> $status, leaked: $leaked"
                       if [ "$leaked" = "YES" ]; then exit 1; fi
                   done
+                  exit $result

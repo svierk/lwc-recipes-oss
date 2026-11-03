@@ -1,0 +1,81 @@
+name: Verify static server
+
+# Fork-only verification of npm start: finds the @fastify/static version that
+# broke the site and checks the fix, including path traversal attempts.
+
+on:
+    push:
+        branches:
+            - 'svierk/verify-static-server'
+
+permissions:
+    contents: read
+
+jobs:
+    bisect:
+        name: without fix (@fastify/static ${{ matrix.version }})
+        strategy:
+            fail-fast: false
+            matrix:
+                version: ['9.0.0', '9.1.0', '9.1.1', '9.1.3', '10.1.8']
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@v7.1.0
+              with:
+                  node-version-file: package.json
+                  cache: npm
+            - run: HUSKY=0 npm ci
+            - run: npm run build
+            - run: |
+                  npm install --no-save --no-audit --no-fund --legacy-peer-deps @fastify/static@${{ matrix.version }} playwright@1.64.1
+                  npx playwright install chromium
+                  git checkout HEAD~1 -- scripts/start-server.mjs
+            - run: |
+                  PORT=3001 npm start > start.log 2>&1 &
+                  sleep 5
+                  node scripts/verify/browser-check.mjs http://localhost:3001 start.png
+
+    fix:
+        name: with fix (${{ matrix.os }})
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
+        defaults:
+            run:
+                shell: bash
+        steps:
+            - uses: actions/checkout@v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@v7.1.0
+              with:
+                  node-version-file: package.json
+                  cache: npm
+            - run: HUSKY=0 npm ci
+            - run: npm run build
+            - run: |
+                  npm install --no-save --no-audit --no-fund --legacy-peer-deps playwright@1.64.1
+                  npx playwright install chromium
+            - name: Browser check and traversal probes
+              run: |
+                  PORT=3001 npm start > start.log 2>&1 &
+                  sleep 5
+                  node scripts/verify/browser-check.mjs http://localhost:3001 start.png
+                  for path in \
+                      '/..%2F..%2Fpackage.json' \
+                      '/%2E%2E%2F%2E%2E%2Fpackage.json' \
+                      '/1%2F..%2F..%2Fpackage.json' \
+                      '/..%252F..%252Fpackage.json' \
+                      '/..%5C..%5Cpackage.json' \
+                      '/1/%2E%2E/%2E%2E/package.json'; do
+                      status=$(curl -s --path-as-is -o probe.txt -w '%{http_code}' "http://localhost:3001$path")
+                      leaked=no
+                      grep -q 'lwc-recipes-oss' probe.txt && leaked=YES
+                      echo "probe $path -> $status, leaked: $leaked"
+                      if [ "$leaked" = "YES" ]; then exit 1; fi
+                  done

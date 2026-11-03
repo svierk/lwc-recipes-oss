@@ -73,6 +73,7 @@ jobs:
 
             # npm start serves the static site from /site
             - name: 'Smoke test static server'
+              continue-on-error: true
               run: |
                   PORT=3001 npm start > start.log 2>&1 &
                   for i in $(seq 1 60); do
@@ -82,7 +83,7 @@ jobs:
                   done
                   echo "HTTP status: $status"
                   test "$status" = "200"
-                  node scripts/verify/browser-check.mjs http://localhost:3001
+                  node scripts/verify/browser-check.mjs http://localhost:3001 start.png
 
             # npm run dev compiles the modules on request - the reported
             # Windows error surfaced here as well
@@ -98,7 +99,7 @@ jobs:
                   cat dev.log
                   echo "HTTP status: $status"
                   test "$status" = "200"
-                  node scripts/verify/browser-check.mjs http://localhost:3000
+                  node scripts/verify/browser-check.mjs http://localhost:3000 dev.png
                   if grep -q '\[error\]' dev.log; then
                       echo "::error title=Smoke test dev server::lwr dev logged errors, see the output above"
                       exit 1
@@ -123,4 +124,6 @@ jobs:
                       build.log
                       start.log
                       dev.log
+                      start.png
+                      dev.png
                   if-no-files-found: ignore

@@ -46,10 +46,8 @@ jobs:
             - name: 'Install npm dependencies'
               run: HUSKY=0 npm ci
 
-            # Reported separately: fails on CRLF checkouts without .gitattributes
             - name: 'Code formatting verification with Prettier'
               id: prettier
-              continue-on-error: true
               run: npm run prettier:verify
 
             - name: 'Lint Lightning Web Components'
@@ -68,6 +66,11 @@ jobs:
                       exit 1
                   fi
 
+            - name: 'Install browser'
+              run: |
+                  npm install --no-save --no-audit --no-fund playwright@1.64.1
+                  npx playwright install chromium
+
             # npm start serves the static site from /site
             - name: 'Smoke test static server'
               run: |
@@ -79,6 +82,7 @@ jobs:
                   done
                   echo "HTTP status: $status"
                   test "$status" = "200"
+                  node scripts/verify/browser-check.mjs http://localhost:3001
 
             # npm run dev compiles the modules on request - the reported
             # Windows error surfaced here as well
@@ -94,6 +98,7 @@ jobs:
                   cat dev.log
                   echo "HTTP status: $status"
                   test "$status" = "200"
+                  node scripts/verify/browser-check.mjs http://localhost:3000
                   if grep -q '\[error\]' dev.log; then
                       echo "::error title=Smoke test dev server::lwr dev logged errors, see the output above"
                       exit 1

@@ -7,11 +7,12 @@ on:
     push:
         branches:
             - main
+            - 'svierk/**'
 
 # Jobs to be executed
 jobs:
     format-lint-lwc-tests:
-        runs-on: trailheadapps-Ubuntu
+        runs-on: ubuntu-latest
         steps:
             # Checkout the code in the pull request
             - name: 'Checkout source code'
